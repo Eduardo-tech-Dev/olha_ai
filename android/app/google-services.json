@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "254174025282",
+    "project_id": "olha-ai-c246e",
+    "storage_bucket": "olha-ai-c246e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:254174025282:android:eca2d7e542fa370257ffdb",
+        "android_client_info": {
+          "package_name": "com.example.olha_ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4cyh9oAg1e0kGfTCz0uwSeGufPv-qg4U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

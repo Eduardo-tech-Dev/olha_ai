@@ -12,7 +12,7 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +28,9 @@ class MyApp extends StatelessWidget {
           elevation: 0,
         ),
         colorScheme: ColorScheme.dark(
+          surface: const Color(0xFF121212),
           primary: const Color(0xFF8A7CFF),
           secondary: const Color(0xFF4CD964),
-          surface: const Color(0xFF2C2C2C),
           background: const Color(0xFF121212),
         ),
       ),
@@ -51,25 +51,19 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
-  }
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!mounted) return;
 
-  // Verifica se o usuário está autenticado
-  Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
-    } else {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-    }
+      if (user != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+    });
   }
 
   @override
@@ -118,6 +112,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   // Função para realizar login
+  // Versão corrigida da função _login
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -127,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // Primeiro fazer o login
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -134,17 +131,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
+      // Navegar para a tela inicial se o login foi bem-sucedido
       Navigator.of(
         context,
       ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? 'Erro ao fazer login';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = switch (e.code) {
+            'user-not-found' => 'Usuário não encontrado',
+            'wrong-password' => 'Senha incorreta',
+            'invalid-email' => 'Email inválido',
+            _ => e.message ?? 'Erro ao fazer login',
+          };
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Ocorreu um erro inesperado';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Erro inesperado: $e';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -322,14 +329,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      // Criar usuário no Firebase Auth
+      // Criar usuário
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
             email: _emailController.text.trim(),
             password: _passwordController.text.trim(),
           );
 
-      // Adicionar informações do usuário no Firestore
+      // Salvar informações adicionais do usuário
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(userCredential.user!.uid)
@@ -341,17 +348,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
+      // Navegar para a tela inicial
       Navigator.of(
         context,
       ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message ?? 'Erro ao registrar';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = switch (e.code) {
+            'weak-password' => 'A senha é muito fraca',
+            'email-already-in-use' => 'Este email já está em uso',
+            'invalid-email' => 'Email inválido',
+            _ => e.message ?? 'Erro ao registrar',
+          };
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Ocorreu um erro inesperado';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Erro inesperado: $e';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -524,10 +541,45 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    String boardTitle = '';
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Novo Quadro'),
+          content: TextField(
+            autofocus: true,
+            decoration: InputDecoration(hintText: 'Digite o nome do quadro'),
+            onChanged: (value) {
+              boardTitle = value;
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // fecha o dialog sem criar
+              },
+              child: Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (boardTitle.trim().isEmpty) return; // não fecha se vazio
+                Navigator.of(context).pop(boardTitle);
+              },
+              child: Text('Criar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (boardTitle.trim().isEmpty) return;
+
     final boardId = const Uuid().v4();
     await _firestore.collection('quadros').doc(boardId).set({
       'id': boardId,
-      'titulo': 'Novo Quadro',
+      'titulo': boardTitle.trim(),
       'criadorId': user.uid,
       'usuariosCompartilhados': [],
       'dataCriacao': FieldValue.serverTimestamp(),
@@ -542,98 +594,114 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = _auth.currentUser;
+    return StreamBuilder<User?>(
+      stream: _auth.authStateChanges(),
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meus Quadros'),
-        actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream:
-            _firestore
-                .collection('quadros')
-                .where('criadorId', isEqualTo: user?.uid)
-                .orderBy('dataCriacao', descending: true)
-                .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        final user = authSnapshot.data;
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Erro: ${snapshot.error}'));
-          }
+        if (user == null) {
+          // Usuário não está logado, redirecionar para login
+          return const LoginScreen();
+        }
 
-          final boards = snapshot.data?.docs ?? [];
+        // Usuário está logado, agora mostrar os quadros
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Meus Quadros'),
+            actions: [
+              IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+            ],
+          ),
+          body: StreamBuilder<QuerySnapshot>(
+            stream:
+                _firestore
+                    .collection('quadros')
+                    .where('criadorId', isEqualTo: user.uid)
+                    .orderBy('dataCriacao', descending: true)
+                    .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          if (boards.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.dashboard_customize,
-                    size: 80,
-                    color: Colors.grey[600],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Nenhum quadro encontrado',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: _createBoard,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Criar Quadro'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
+              if (snapshot.hasError) {
+                return Center(child: Text('Erro: ${snapshot.error}'));
+              }
+
+              final boards = snapshot.data?.docs ?? [];
+
+              if (boards.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.dashboard_customize,
+                        size: 80,
+                        color: Colors.grey[600],
                       ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Nenhum quadro encontrado',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _createBoard,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Criar Quadro'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: boards.length,
+                itemBuilder: (context, index) {
+                  final board = boards[index];
+                  final boardData = board.data() as Map<String, dynamic>;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: ListTile(
+                      title: Text(boardData['titulo'] ?? 'Sem título'),
+                      leading: const Icon(Icons.dashboard),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) =>
+                                    TaskBoardScreen(boardId: boardData['id']),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: boards.length,
-            itemBuilder: (context, index) {
-              final board = boards[index];
-              final boardData = board.data() as Map<String, dynamic>;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ListTile(
-                  title: Text(boardData['titulo'] ?? 'Sem título'),
-                  leading: const Icon(Icons.dashboard),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder:
-                            (_) => TaskBoardScreen(boardId: boardData['id']),
-                      ),
-                    );
-                  },
-                ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _createBoard,
-        backgroundColor: Theme.of(context).primaryColor,
-        child: const Icon(Icons.add),
-      ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: _createBoard,
+            backgroundColor: Theme.of(context).primaryColor,
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
     );
   }
 }
@@ -719,7 +787,6 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
   List<Task> _tasks = [];
-  String _boardTitle = 'Carregando...';
   bool _isLoading = true;
 
   @override
@@ -735,16 +802,6 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     });
 
     try {
-      // Carregar informações do quadro
-      final boardDoc =
-          await _firestore.collection('quadros').doc(widget.boardId).get();
-      if (boardDoc.exists) {
-        final boardData = boardDoc.data() as Map<String, dynamic>;
-        setState(() {
-          _boardTitle = boardData['titulo'] ?? 'Sem título';
-        });
-      }
-
       // Configurar listener para tarefas
       _firestore
           .collection('tarefas')
@@ -1115,7 +1172,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
         color: Theme.of(context).appBarTheme.backgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withAlpha(25),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1188,7 +1245,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
         color: Theme.of(context).appBarTheme.backgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withAlpha(25),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),
@@ -1233,7 +1290,6 @@ class TaskColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 250,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -1241,21 +1297,21 @@ class TaskColumn extends StatelessWidget {
       child: DragTarget<String>(
         builder: (context, candidateData, rejectedData) {
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Título da coluna
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
-
-              // Lista de tarefas
               Expanded(
                 child:
                     tasks.isEmpty
@@ -1279,7 +1335,7 @@ class TaskColumn extends StatelessWidget {
             ],
           );
         },
-        onAccept: onAccept,
+        onAcceptWithDetails: (details) => onAccept(details.data),
       ),
     );
   }
@@ -1381,7 +1437,7 @@ class TaskCard extends StatelessWidget {
           border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withAlpha(25),
               blurRadius: 2,
               offset: const Offset(0, 1),
             ),

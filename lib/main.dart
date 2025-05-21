@@ -251,6 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).primaryColor,
+                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -474,6 +475,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onPressed: _isLoading ? null : _register,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).primaryColor,
+                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -656,6 +658,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         label: const Text('Criar Quadro'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,
                             vertical: 12,
@@ -832,6 +835,20 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
       }
     }
   }
+  Future<void> _deleteItem() async {
+  await FirebaseFirestore.instance
+      .collection('quadros')
+      .doc(widget.boardId)
+      .delete();
+
+  if (!mounted) return;
+
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const HomeScreen()),
+    (route) => false,
+  );
+}
+
 
   // Atualizar status de uma tarefa
   Future<void> _updateTaskStatus(String taskId, String newStatus) async {
@@ -915,6 +932,34 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
                         _buildIconOption(Icons.bed, selectedIcon, (icon) {
                           setState(() => selectedIcon = icon);
                         }),
+                        _buildIconOption(Icons.school, selectedIcon, (icon) {
+                          setState(() => selectedIcon = icon);
+                        }),
+                        _buildIconOption(Icons.work_outline, selectedIcon, (
+                          icon,
+                        ) {
+                          setState(() => selectedIcon = icon);
+                        }),
+                        _buildIconOption(Icons.pets, selectedIcon, (icon) {
+                          setState(() => selectedIcon = icon);
+                        }),
+                        _buildIconOption(
+                          Icons.shopping_cart_outlined,
+                          selectedIcon,
+                          (icon) {
+                            setState(() => selectedIcon = icon);
+                          },
+                        ),
+                        _buildIconOption(Icons.book, selectedIcon, (icon) {
+                          setState(() => selectedIcon = icon);
+                        }),
+                        _buildIconOption(
+                          Icons.lightbulb_outline,
+                          selectedIcon,
+                          (icon) {
+                            setState(() => selectedIcon = icon);
+                          },
+                        ),
                       ],
                     ),
                   ],
@@ -933,6 +978,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
                     ),
                     child: const Text('Adicionar'),
                   ),
@@ -1111,42 +1157,48 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Coluna "A Fazer"
-                      Expanded(
-                        child: TaskColumn(
-                          title: 'A Fazer',
-                          tasks: _getTasksByStatus('todo'),
-                          onAccept:
-                              (taskId) => _updateTaskStatus(taskId, 'todo'),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Coluna "A Fazer"
+                        SizedBox(
+                          width: 250, // largura fixa, pode ajustar
+                          child: TaskColumn(
+                            title: 'A Fazer',
+                            tasks: _getTasksByStatus('todo'),
+                            onAccept:
+                                (taskId) => _updateTaskStatus(taskId, 'todo'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
+                        const SizedBox(width: 12),
 
-                      // Coluna "Em Progresso"
-                      Expanded(
-                        child: TaskColumn(
-                          title: 'Em Progresso',
-                          tasks: _getTasksByStatus('inProgress'),
-                          onAccept:
-                              (taskId) =>
-                                  _updateTaskStatus(taskId, 'inProgress'),
+                        // Coluna "Em Progresso"
+                        SizedBox(
+                          width: 250,
+                          child: TaskColumn(
+                            title: 'Em Progresso',
+                            tasks: _getTasksByStatus('inProgress'),
+                            onAccept:
+                                (taskId) =>
+                                    _updateTaskStatus(taskId, 'inProgress'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
+                        const SizedBox(width: 12),
 
-                      // Coluna "Feito"
-                      Expanded(
-                        child: TaskColumn(
-                          title: 'Feito',
-                          tasks: _getTasksByStatus('done'),
-                          onAccept:
-                              (taskId) => _updateTaskStatus(taskId, 'done'),
+                        // Coluna "Feito"
+                        SizedBox(
+                          width: 250,
+                          child: TaskColumn(
+                            title: 'Feito',
+                            tasks: _getTasksByStatus('done'),
+                            onAccept:
+                                (taskId) => _updateTaskStatus(taskId, 'done'),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1236,43 +1288,67 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
       ),
     );
   }
+  void _confirmDelete() {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Excluir item'),
+      content: const Text('Tem certeza que deseja excluir este item?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            _deleteItem(); // Sua lógica de exclusão aqui
+          },
+          child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    ),
+  );
+}
+
 
   // Widget para a barra de navegação inferior
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      height: 60,
-      decoration: BoxDecoration(
-        color: Theme.of(context).appBarTheme.backgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(25),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.home, size: 28),
-            onPressed: () {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const HomeScreen()),
-                (route) => false,
-              );
-            },
-          ),
-          IconButton(icon: const Icon(Icons.menu, size: 28), onPressed: () {}),
-          IconButton(
-            icon: const Icon(Icons.message, size: 28),
-            onPressed: () {},
-          ),
-        ],
-      ),
-    );
-  }
+ Widget _buildBottomNavigationBar() {
+  return Container(
+    height: 60,
+    decoration: BoxDecoration(
+      color: Theme.of(context).appBarTheme.backgroundColor,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withAlpha(25),
+          blurRadius: 4,
+          offset: const Offset(0, -2),
+        ),
+      ],
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.home, size: 28),
+          onPressed: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              (route) => false,
+            );
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete, size: 28, color: Colors.red),
+          onPressed: _confirmDelete, // você pode definir essa função abaixo
+        ),
+      ],
+    ),
+  );
 }
+}
+
+
 
 // Widget para representar uma coluna de tarefas
 class TaskColumn extends StatelessWidget {
@@ -1289,39 +1365,76 @@ class TaskColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DragTarget<String>(
-        builder: (context, candidateData, rejectedData) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+    return DragTarget<String>(
+      onAcceptWithDetails: (details) => onAccept(details.data),
+      builder: (context, candidateData, rejectedData) {
+        final isDraggingOver = candidateData.isNotEmpty;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color:
+                isDraggingOver
+                    ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
+                    : Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color:
+                  isDraggingOver
+                      ? Theme.of(context).colorScheme.primary.withOpacity(0.6)
+                      : Colors.grey.withOpacity(0.1),
+              width: isDraggingOver ? 2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                 ),
               ),
+              const Divider(height: 1),
               Expanded(
                 child:
                     tasks.isEmpty
                         ? Center(
-                          child: Text(
-                            'Nenhuma tarefa',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inbox,
+                                size: 40,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Nenhuma tarefa',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
                         )
                         : ListView.builder(
@@ -1333,10 +1446,9 @@ class TaskColumn extends StatelessWidget {
                         ),
               ),
             ],
-          );
-        },
-        onAcceptWithDetails: (details) => onAccept(details.data),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1356,7 +1468,7 @@ class TaskCard extends StatelessWidget {
         iconColor = const Color(0xFF8A7CFF);
         break;
       case 'inProgress':
-        iconColor = const Color(0xFF8A7CFF);
+        iconColor = const Color.fromARGB(255, 252, 122, 1);
         break;
       case 'done':
         iconColor = const Color(0xFF4CD964);
